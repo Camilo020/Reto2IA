@@ -1,29 +1,19 @@
 # Agente de Registro de Contratos
 
-Aplicación independiente para leer contratos ficticios desde un buzón fixture, extraer datos, validar duplicados/actualizaciones, mantener un maestro CSV de salida y generar alertas.
+Aplicación independiente que procesa contratos ficticios del buzón, extrae datos trazables, valida duplicados/otrosíes, actualiza un maestro CSV de salida y genera alertas.
 
-## Arquitectura recomendada
-
-**Monolito modular TypeScript desplegado como un servicio Railway con volumen persistente en `/app/out`.** Es la opción más práctica para el alcance: un único servicio HTTP reduce complejidad, el dominio es determinista y los artefactos CSV/documentales requieren persistencia. No se recomienda microservicios ni base de datos para este reto.
-
-```text
-Chat web → API Node → ciclo de agente → herramientas Zod → fixtures (lectura) / out (escritura)
-                                      ↘ adaptador LLM opcional
-```
-
-En Railway: build `npm run build`, start `npm start`, variables solo en el servicio y volumen persistente montado en `/app/out`. Railway proporciona `PORT`; el servidor escucha en `0.0.0.0`.
-
-## Ejecución
+## Arranque
 
 ```bash
 npm install
-npm run demo
 npm run dev
 ```
 
-## Variables
+Para comprobar el dominio sin un proveedor LLM:
 
-Ver `.env.example`. Sin clave se puede usar el adaptador fake para desarrollo. Nunca versionar `.env`.
+```bash
+npm run demo
+```
 
 ## Calidad
 
@@ -34,6 +24,45 @@ npm test
 npm run build
 ```
 
+## Variables
+
+| Variable | Uso |
+|---|---|
+| `LLM_PROVIDER` | `deepseek` o `fake`. |
+| `DEEPSEEK_API_KEY` | Solo backend; nunca repositorio, frontend ni logs. |
+| `DEEPSEEK_BASE_URL` | URL de DeepSeek. |
+| `DEEPSEEK_MODEL` | Modelo configurado. |
+| `PORT` | Puerto HTTP, por defecto 8080. |
+| `MAX_ITERATIONS_PER_TURN` | Máximo de ciclos de herramientas. |
+| `MAX_TOKENS_PER_SESSION` | Presupuesto por sesión. |
+| `LLM_TIMEOUT_MS` | Timeout de proveedor. |
+| `RATE_LIMIT_PER_MINUTE` | Límite de API por IP. |
+
+Copia `.env.example` a `.env` para desarrollo local. No subas `.env`.
+
+## Demo determinista
+
+`npm run demo` limpia `out/`, procesa los seis mensajes y genera:
+
+- altas `msg-001` y `msg-002`;
+- actualización de `CT-2026-011` desde `msg-003`;
+- duplicado de `msg-004` sin nueva fila;
+- rechazo pendiente de `msg-005`, sin incluirlo en procesados;
+- bloqueo y posterior confirmación de `msg-006` con valor `0` y fecha fin `2027-08-31`;
+- `out/alertas.md`.
+
+## API
+
+- `POST /api/chat` → `{ sessionId, message }`.
+- `GET /api/sessions/:id` → historial.
+- `GET /api/health` → proveedor/modelo sin secretos.
+
+## Railway
+
+La URL pública configurada es `https://reto2ia-production.up.railway.app`.
+
+Configura Build `npm run build`, Start `npm start`, healthcheck `/api/health` y un volumen persistente en `/app/out`. Agrega `DEEPSEEK_API_KEY` en Railway Variables para activar el modelo real; sin la clave, la app inicia en modo `fake` y no se debe usar como prueba de conversación LLM.
+
 ## Límites
 
-No integra Exchange, SharePoint, firma, correo real, portales ni OCR. `msg-005` se rechaza pero permanece pendiente. `msg-006` solo se registra tras confirmar valor `0` y fecha fin `2027-08-31`.
+No integra Exchange, SharePoint, firma, correo real, portales ni OCR. Los fixtures son ficticios; no prueban validez documental o jurídica real.
